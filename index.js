@@ -3,8 +3,16 @@ const fs = require('node:fs')
 const path = require('node:path')
 const dotenv = require("dotenv");
 dotenv.config();
+const mongo = require("./utils/mongo")
+const arSchema = require('./schemas/autoRole')
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds]});
+const client = new Client({ 
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMembers
+  ]
+});
 
 client.commands = new Collection();
 
@@ -22,9 +30,12 @@ for (const file of commandFiles){
 }
 
 
-client.once(Events.ClientReady, c => {
+client.once(Events.ClientReady, async c => {
+    await mongo()
     console.log(`Ready! Logged in as ${c.user.tag}`);
 })
+
+client.login(process.env.token);
 
 client.on(Events.InteractionCreate, async interaction => {
     if(!interaction.isChatInputCommand()) return;
@@ -43,8 +54,13 @@ client.on(Events.InteractionCreate, async interaction => {
 			  await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
 		}
     }
-})
+});
 
-//TODO: Registering slash commands
+client.on(Events.GuildMemberAdd, async (member) => {
+  const role = await arSchema.findOne({ guildId: member.guild.id}).exec()
+  const givenRole = await member.guild.roles.cache.get(role.roleId)
+  member.roles.add(givenRole)
+});
 
-client.login(process.env.token);
+
+
